@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedWizard - Clinical Appointment Management Platform</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel Standalone -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- INITIAL SEED DATA ---
+    const INITIAL_DOCTORS = [
+      { id: 'doc-1', name: 'Dr. Sarah Jenkins', specialty: 'Cardiology', room: 'Suite 204', avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&h=150&fit=crop&crop=face', days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] },
+      { id: 'doc-2', name: 'Dr. Michael Chen', specialty: 'General Practice', room: 'Clinic 102', avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&h=150&fit=crop&crop=face', days: ['Mon', 'Wed', 'Fri'] },
+      { id: 'doc-3', name: 'Dr. Emily Watson', specialty: 'Pediatrics', room: 'Suite 310', avatar: 'https://images.unsplash.com/photo-1594824813528-98e6d2bc6291?w=150&h=150&fit=crop&crop=face', days: ['Tue', 'Thu', 'Sat'] },
+      { id: 'doc-4', name: 'Dr. David Ross', specialty: 'Orthopedics', room: 'Clinic 108', avatar: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=150&h=150&fit=crop&crop=face', days: ['Mon', 'Tue', 'Thu'] },
+      { id: 'doc-5', name: 'Dr. Alistair Vance', specialty: 'Dermatology', room: 'Suite 401', avatar: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=150&h=150&fit=crop&crop=face', days: ['Wed', 'Fri', 'Sat'] },
+    ];
+
+    const AVAILABLE_SLOTS = [
+      '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM',
+      '11:00 AM', '11:30 AM', '02:00 PM', '02:30 PM',
+      '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM'
+    ];
+
+    const getTodayStr = () => new Date().toISOString().split('T')[0];
+    const getTomorrowStr = () => {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().split('T')[0];
+    };
+
+    const INITIAL_APPOINTMENTS = [
+      { id: 'APT-1001', patientName: 'Kumara Silva', patientPhone: '077 123 4567', patientEmail: 'kumara.s@example.com', doctorId: 'doc-1', date: getTodayStr(), time: '09:00 AM', type: 'Routine', status: 'Completed', notes: 'Routine ECG and blood pressure check. Normal vitals.' },
+      { id: 'APT-1002', patientName: 'Amara Perera', patientPhone: '071 987 6543', patientEmail: 'amara.p@example.com', doctorId: 'doc-1', date: getTodayStr(), time: '10:30 AM', type: 'Urgent', status: 'In-Progress', notes: 'Acute chest tightness. ECG requested immediately.' },
+      { id: 'APT-1003', patientName: 'Nimal Jayawardena', patientPhone: '075 555 8899', patientEmail: 'nimal.j@example.com', doctorId: 'doc-2', date: getTodayStr(), time: '11:00 AM', type: 'Follow-up', status: 'Upcoming', notes: 'Post-viral follow up and lab review.' },
+      { id: 'APT-1004', patientName: 'Dilani Fernando', patientPhone: '078 223 3445', patientEmail: 'dilani.f@example.com', doctorId: 'doc-3', date: getTodayStr(), time: '02:00 PM', type: 'Routine', status: 'Upcoming', notes: 'Child vaccination 18-month milestone check.' },
+      { id: 'APT-1005', patientName: 'Roshan Dias', patientPhone: '072 667 7889', patientEmail: 'roshan.d@example.com', doctorId: 'doc-4', date: getTomorrowStr(), time: '09:30 AM', type: 'Urgent', status: 'Upcoming', notes: 'Left knee ligament sprain during sports.' },
+      { id: 'APT-1006', patientName: 'Shanika Gunasekara', patientPhone: '077 443 2110', patientEmail: 'shanika.g@example.com', doctorId: 'doc-5', date: getTomorrowStr(), time: '10:00 AM', type: 'Follow-up', status: 'Upcoming', notes: 'Eczema treatment review and topical steroid check.' },
+      { id: 'APT-1007', patientName: 'Chathura Mendis', patientPhone: '076 998 1234', patientEmail: 'chathura.m@example.com', doctorId: 'doc-2', date: getTodayStr(), time: '03:30 PM', type: 'Routine', status: 'Cancelled', notes: 'Patient rescheduled due to work emergency.' }
+    ];
+
+    function App() {
+      const [appointments, setAppointments] = useState(() => {
+        const saved = localStorage.getItem('medwizard_appointments_v1');
+        return saved ? JSON.parse(saved) : INITIAL_APPOINTMENTS;
+      });
+      const [doctors] = useState(INITIAL_DOCTORS);
+      const [activeTab, setActiveTab] = useState('appointments'); // appointments, doctors, analytics
+      const [searchQuery, setSearchQuery] = useState('');
+      const [statusFilter, setStatusFilter] = useState('ALL');
+      const [doctorFilter, setDoctorFilter] = useState('ALL');
+      const [dateFilter, setDateFilter] = useState('');
+      const [isModalOpen, setIsModalOpen] = useState(false);
+      const [editingAppointment, setEditingAppointment] = useState(null);
+
+      // Form state for booking
+      const [formData, setFormData] = useState({
+        patientName: '',
+        patientPhone: '',
+        patientEmail: '',
+        doctorId: INITIAL_DOCTORS[0].id,
+        date: getTodayStr(),
+        time: '',
+        type: 'Routine',
+        notes: ''
+      });
+
+      useEffect(() => {
+        localStorage.setItem('medwizard_appointments_v1', JSON.stringify(appointments));
+        if (window.lucide) window.lucide.createIcons();
+      }, [appointments, activeTab, isModalOpen]);
+
+      // Metrics calculation
+      const metrics = useMemo(() => {
+        const todayStr = getTodayStr();
+        const total = appointments.length;
+        const todayCount = appointments.filter(a => a.date === todayStr && a.status !== 'Cancelled').length;
+        const completed = appointments.filter(a => a.status === 'Completed').length;
+        const upcoming = appointments.filter(a => a.status === 'Upcoming').length;
+        const cancelled = appointments.filter(a => a.status === 'Cancelled').length;
+        return { total, todayCount, completed, upcoming, cancelled };
+      }, [appointments]);
+
+      // Check doctor slot conflict
+      const getBookedSlotsForDoctorDate = (docId, dateStr, excludeAptId = null) => {
+        return appointments
+          .filter(a => a.doctorId === docId && a.date === dateStr && a.status !== 'Cancelled' && a.id !== excludeAptId)
+          .map(a => a.time);
+      };
+
+      const handleOpenBooking = (docId = null) => {
+        setEditingAppointment(null);
+        setFormData({
+          patientName: '',
+          patientPhone: '',
+          patientEmail: '',
+          doctorId: docId || INITIAL_DOCTORS[0].id,
+          date: getTodayStr(),
+          time: '',
+          type: 'Routine',
+          notes: ''
+        });
+        setIsModalOpen(true);
+      };
+
+      const handleEditAppointment = (apt) => {
+        setEditingAppointment(apt);
+        setFormData({
+          patientName: apt.patientName,
+          patientPhone: apt.patientPhone,
+          patientEmail: apt.patientEmail,
+          doctorId: apt.doctorId,
+          date: apt.date,
+          time: apt.time,
+          type: apt.type,
+          notes: apt.notes
+        });
+        setIsModalOpen(true);
+      };
+
+      const handleSaveAppointment = (e) => {
+        e.preventDefault();
+        if (!formData.time) {
+          alert('Please select an available time slot.');
+          return;
+        }
+
+        // Double booking conflict validation
+        const booked = getBookedSlotsForDoctorDate(formData.doctorId, formData.date, editingAppointment ? editingAppointment.id : null);
+        if (booked.includes(formData.time)) {
+          alert('This time slot has just been reserved! Please choose another slot.');
+          return;
+        }
+
+        if (editingAppointment) {
+          setAppointments(prev => prev.map(a => a.id === editingAppointment.id ? { ...a, ...formData } : a));
+        } else {
+          const newApt = {
+            id: `APT-${Math.floor(1000 + Math.random() * 9000)}`,
+            ...formData,
+            status: 'Upcoming'
+          };
+          setAppointments(prev => [newApt, ...prev]);
+        }
+        setIsModalOpen(false);
+      };
+
+      const handleUpdateStatus = (id, newStatus) => {
+        setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
+      };
+
+      const handleDeleteAppointment = (id) => {
+        if (confirm('Are you sure you want to cancel this appointment permanently?')) {
+          setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'Cancelled' } : a));
+        }
+      };
+
+      const handleResetDemoData = () => {
+        if (confirm('Reset clinic data to fresh demo state?')) {
+          setAppointments(INITIAL_APPOINTMENTS);
+          localStorage.setItem('medwizard_appointments_v1', JSON.stringify(INITIAL_APPOINTMENTS));
+        }
+      };
+
+      const handleExportJSON = () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appointments, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `medwizard_appointments_${getTodayStr()}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+      };
+
+      // Filtered Appointments
+      const filteredAppointments = useMemo(() => {
+        return appointments.filter(a => {
+          const doc = doctors.find(d => d.id === a.doctorId);
+          const matchesSearch = a.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            a.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (doc && doc.name.toLowerCase().includes(searchQuery.toLowerCase()));
+          const matchesStatus = statusFilter === 'ALL' || a.status === statusFilter;
+          const matchesDoctor = doctorFilter === 'ALL' || a.doctorId === doctorFilter;
+          const matchesDate = !dateFilter || a.date === dateFilter;
+          return matchesSearch && matchesStatus && matchesDoctor && matchesDate;
+        });
+      }, [appointments, doctors, searchQuery, statusFilter, doctorFilter, dateFilter]);
+
+      const bookedSlots = useMemo(() => {
+        return getBookedSlotsForDoctorDate(formData.doctorId, formData.date, editingAppointment ? editingAppointment.id : null);
+      }, [formData.doctorId, formData.date, appointments, editingAppointment]);
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* TOP NAVIGATION BAR */}
+          <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-700 to-cyan-500 flex items-center justify-center text-white shadow-md">
+                  <i data-lucide="cross" className="w-6 h-6 stroke-[2.5]"></i>
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-bold text-lg text-slate-900 tracking-tight">MedWizard</span>
+                    <span className="bg-blue-100 text-blue-800 text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">Clinical Suite</span>
+                  </div>
+                  <p className="text-xs text-slate-500 hidden sm:block">Healthcare Practice & Appointment Management Engine</p>
+                </div>
+              </div>
+
+              {/* ACTION TOOLBAR */}
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <button 
+                  onClick={handleExportJSON}
+                  title="Export Appointments as JSON" 
+                  className="px-3 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition flex items-center space-x-1.5"
+                >
+                  <i data-lucide="download" className="w-4 h-4"></i>
+                  <span className="hidden md:inline">Export</span>
+                </button>
+                <button 
+                  onClick={handleResetDemoData} 
+                  title="Reset to Fresh Demo State" 
+                  className="px-3 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition flex items-center space-x-1.5"
+                >
+                  <i data-lucide="rotate-ccw" className="w-4 h-4"></i>
+                  <span className="hidden md:inline">Reset</span>
+                </button>
+                <button 
+                  onClick={() => handleOpenBooking()} 
+                  className="px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-sm hover:shadow transition flex items-center space-x-1.5"
+                >
+                  <i data-lucide="plus-circle" className="w-4 h-4"></i>
+                  <span>Book Appointment</span>
+                </button>
+              </div>
+            </div>
+
+            {/* TAB NAVIGATION */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-8 -mb-px">
+              <button
+                onClick={() => setActiveTab('appointments')}
+                className={`py-3 text-sm font-medium border-b-2 transition flex items-center space-x-2 ${
+                  activeTab === 'appointments' ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <i data-lucide="calendar" className="w-4 h-4"></i>
+                <span>Appointments ({appointments.length})</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('doctors')}
+                className={`py-3 text-sm font-medium border-b-2 transition flex items-center space-x-2 ${
+                  activeTab === 'doctors' ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <i data-lucide="users" className="w-4 h-4"></i>
+                <span>Doctors & Schedules ({doctors.length})</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('analytics')}
+                className={`py-3 text-sm font-medium border-b-2 transition flex items-center space-x-2 ${
+                  activeTab === 'analytics' ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <i data-lucide="bar-chart-3" className="w-4 h-4"></i>
+                <span>Clinic Analytics</span>
+              </button>
+            </div>
+          </header>
+
+          {/* MAIN CONTENT AREA */}
+          <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
+            {/* STATS OVERVIEW CARDS */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Bookings</p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">{metrics.total}</p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <i data-lucide="calendar-check" className="w-5 h-5"></i>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Today's Visits</p>
+                  <p className="text-2xl font-bold text-brand-600 mt-1">{metrics.todayCount}</p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
+                  <i data-lucide="clock" className="w-5 h-5"></i>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Completed</p>
+                  <p className="text-2xl font-bold text-emerald-600 mt-1">{metrics.completed}</p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <i data-lucide="check-circle-2" className="w-5 h-5"></i>
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Active Clinicians</p>
+                  <p className="text-2xl font-bold text-purple-600 mt-1">{doctors.length}</p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <i data-lucide="stethoscope" className="w-5 h-5"></i>
+                </div>
+              </div>
+            </div>
+
+            {/* TAB: APPOINTMENTS */}
+            {activeTab === 'appointments' && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                {/* SEARCH & FILTERS BAR */}
+                <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col md:flex-row gap-3 items-center justify-between">
+                  <div className="relative w-full md:w-80">
+                    <i data-lucide="search" className="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
+                    <input 
+                      type="text" 
+                      placeholder="Search patient, ID, or doctor..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                    {/* Status filter */}
+                    <select 
+                      value={statusFilter} 
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value="ALL">All Statuses</option>
+                      <option value="Upcoming">Upcoming</option>
+                      <option value="In-Progress">In-Progress</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+
+                    {/* Doctor filter */}
+                    <select 
+                      value={doctorFilter} 
+                      onChange={(e) => setDoctorFilter(e.target.value)}
+                      className="px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value="ALL">All Doctors</option>
+                      {doctors.map(d => (
+                        <option key={d.id} value={d.id}>{d.name} ({d.specialty})</option>
+                      ))}
+                    </select>
+
+                    {/* Date filter */}
+                    <input 
+                      type="date"
+                      value={dateFilter}
+                      onChange={(e) => setDateFilter(e.target.value)}
+                      className="px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+
+                    {(searchQuery || statusFilter !== 'ALL' || doctorFilter !== 'ALL' || dateFilter) && (
+                      <button 
+                        onClick={() => { setSearchQuery(''); setStatusFilter('ALL'); setDoctorFilter('ALL'); setDateFilter(''); }}
+                        className="px-2 py-2 text-xs text-rose-600 hover:bg-rose-50 rounded-lg font-medium"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* APPOINTMENT TABLE */}
+                <div className="overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+                        <th className="py-3 px-4">Ref ID</th>
+                        <th className="py-3 px-4">Patient</th>
+                        <th className="py-3 px-4">Clinician</th>
+                        <th className="py-3 px-4">Date & Time</th>
+                        <th className="py-3 px-4">Type</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {filteredAppointments.length === 0 ? (
+                        <tr>
+                          <td colSpan="7" className="py-12 text-center text-slate-400">
+                            <i data-lucide="calendar-x" className="w-10 h-10 mx-auto text-slate-300 mb-2"></i>
+                            No appointments matching your criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredAppointments.map(apt => {
+                          const doc = doctors.find(d => d.id === apt.doctorId);
+                          const isToday = apt.date === getTodayStr();
+                          return (
+                            <tr key={apt.id} className="hover:bg-slate-50/80 transition">
+                              <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-600">{apt.id}</td>
+                              <td className="py-3 px-4">
+                                <div className="font-semibold text-slate-900">{apt.patientName}</div>
+                                <div className="text-xs text-slate-500">{apt.patientPhone}</div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="font-medium text-slate-800">{doc ? doc.name : 'Unknown'}</div>
+                                <div className="text-xs text-slate-500">{doc ? `${doc.specialty} • ${doc.room}` : ''}</div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="flex items-center space-x-1.5">
+                                  <span className={`font-medium ${isToday ? 'text-brand-700 font-semibold' : 'text-slate-800'}`}>{apt.date}</span>
+                                  {isToday && <span className="bg-brand-100 text-brand-800 text-[10px] px-1.5 py-0.2 rounded font-bold">TODAY</span>}
+                                </div>
+                                <div className="text-xs text-slate-500">{apt.time}</div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                  apt.type === 'Urgent' ? 'bg-rose-100 text-rose-800' :
+                                  apt.type === 'Follow-up' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                                }`}>
+                                  {apt.type}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                  apt.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
+                                  apt.status === 'In-Progress' ? 'bg-amber-100 text-amber-800' :
+                                  apt.status === 'Cancelled' ? 'bg-slate-100 text-slate-500 line-through' :
+                                  'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {apt.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="inline-flex items-center space-x-1">
+                                  {apt.status === 'Upcoming' && (
+                                    <>
+                                      <button 
+                                        onClick={() => handleUpdateStatus(apt.id, 'In-Progress')}
+                                        title="Mark In-Progress" 
+                                        className="p-1.5 text-amber-600 hover:bg-amber-50 rounded"
+                                      >
+                                        <i data-lucide="play" className="w-4 h-4"></i>
+                                      </button>
+                                      <button 
+                                        onClick={() => handleUpdateStatus(apt.id, 'Completed')}
+                                        title="Mark Completed" 
+                                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded"
+                                      >
+                                        <i data-lucide="check" className="w-4 h-4"></i>
+                                      </button>
+                                    </>
+                                  )}
+                                  {apt.status === 'In-Progress' && (
+                                    <button 
+                                      onClick={() => handleUpdateStatus(apt.id, 'Completed')}
+                                      title="Mark Completed" 
+                                      className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded"
+                                    >
+                                      <i data-lucide="check" className="w-4 h-4"></i>
+                                    </button>
+                                  )}
+                                  <button 
+                                    onClick={() => handleEditAppointment(apt)}
+                                    title="Edit / Reschedule" 
+                                    className="p-1.5 text-slate-600 hover:bg-slate-100 rounded"
+                                  >
+                                    <i data-lucide="edit-3" className="w-4 h-4"></i>
+                                  </button>
+                                  {apt.status !== 'Cancelled' && (
+                                    <button 
+                                      onClick={() => handleDeleteAppointment(apt.id)}
+                                      title="Cancel Appointment" 
+                                      className="p-1.5 text-rose-500 hover:bg-rose-50 rounded"
+                                    >
+                                      <i data-lucide="x" className="w-4 h-4"></i>
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: DOCTORS DIRECTORY */}
+            {activeTab === 'doctors' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {doctors.map(doc => {
+                  const docAppointments = appointments.filter(a => a.doctorId === doc.id && a.date === getTodayStr() && a.status !== 'Cancelled');
+                  return (
+                    <div key={doc.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition">
+                      <div className="flex items-center space-x-4">
+                        <img src={doc.avatar} alt={doc.name} className="w-14 h-14 rounded-full object-cover border-2 border-brand-100" />
+                        <div>
+                          <h3 className="font-bold text-slate-900">{doc.name}</h3>
+                          <p className="text-xs text-brand-600 font-semibold">{doc.specialty}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{doc.room}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-slate-100">
+                        <div className="flex justify-between items-center text-xs mb-2">
+                          <span className="text-slate-500">Today's Schedule:</span>
+                          <span className="font-semibold text-slate-800">{docAppointments.length} bookings</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {doc.days.map(d => (
+                            <span key={d} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] rounded font-medium">{d}</span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mt-5">
+                        <button
+                          onClick={() => handleOpenBooking(doc.id)}
+                          className="w-full py-2 text-xs font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition text-center"
+                        >
+                          Book with {doc.name.split(' ')[1]}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* TAB: CLINIC ANALYTICS */}
+            {activeTab === 'analytics' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                  <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center space-x-2">
+                    <i data-lucide="pie-chart" className="w-5 h-5 text-brand-600"></i>
+                    <span>Consultation Urgency Distribution</span>
+                  </h3>
+                  <div className="space-y-4">
+                    {['Routine', 'Follow-up', 'Urgent'].map(t => {
+                      const count = appointments.filter(a => a.type === t).length;
+                      const pct = appointments.length ? Math.round((count / appointments.length) * 100) : 0;
+                      return (
+                        <div key={t}>
+                          <div className="flex justify-between text-xs font-medium mb-1">
+                            <span>{t} Consultation</span>
+                            <span>{count} ({pct}%)</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-2.5">
+                            <div 
+                              className={`h-2.5 rounded-full ${t === 'Urgent' ? 'bg-rose-500' : t === 'Follow-up' ? 'bg-amber-500' : 'bg-brand-500'}`} 
+                              style={{ width: `${pct}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                  <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center space-x-2">
+                    <i data-lucide="activity" className="w-5 h-5 text-emerald-600"></i>
+                    <span>Specialty Patient Load</span>
+                  </h3>
+                  <div className="space-y-3">
+                    {doctors.map(d => {
+                      const count = appointments.filter(a => a.doctorId === d.id).length;
+                      return (
+                        <div key={d.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">{d.specialty}</p>
+                            <p className="text-[11px] text-slate-500">{d.name}</p>
+                          </div>
+                          <span className="px-2.5 py-1 text-xs font-bold bg-white border border-slate-200 rounded-md text-brand-600">
+                            {count} Visits
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* BOOKING & RESCHEDULING MODAL */}
+          {isModalOpen && (
+            <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100">
+                <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
+                      <i data-lucide="calendar-plus" className="w-4 h-4"></i>
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900">
+                      {editingAppointment ? 'Reschedule / Edit Appointment' : 'Book New Consultation'}
+                    </h3>
+                  </div>
+                  <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                    <i data-lucide="x" className="w-5 h-5"></i>
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveAppointment} className="space-y-4 mt-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Patient Full Name *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="e.g. Sithum Manusha"
+                      value={formData.patientName} 
+                      onChange={e => setFormData({ ...formData, patientName: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Contact Phone *</label>
+                      <input 
+                        type="tel" 
+                        required 
+                        placeholder="077 552 0570"
+                        value={formData.patientPhone} 
+                        onChange={e => setFormData({ ...formData, patientPhone: e.target.value })}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+                      <input 
+                        type="email" 
+                        placeholder="patient@example.com"
+                        value={formData.patientEmail} 
+                        onChange={e => setFormData({ ...formData, patientEmail: e.target.value })}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Attending Clinician *</label>
+                      <select 
+                        value={formData.doctorId} 
+                        onChange={e => setFormData({ ...formData, doctorId: e.target.value, time: '' })}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                      >
+                        {doctors.map(d => (
+                          <option key={d.id} value={d.id}>{d.name} ({d.specialty})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Consultation Type</label>
+                      <select 
+                        value={formData.type} 
+                        onChange={e => setFormData({ ...formData, type: e.target.value })}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                      >
+                        <option value="Routine">Routine Visit</option>
+                        <option value="Follow-up">Follow-up</option>
+                        <option value="Urgent">Urgent / Priority</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Appointment Date *</label>
+                    <input 
+                      type="date" 
+                      required 
+                      min={getTodayStr()}
+                      value={formData.date} 
+                      onChange={e => setFormData({ ...formData, date: e.target.value, time: '' })}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* TIME SLOT SELECTOR WITH AUTOMATIC CONFLICT DETECTION */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Available Time Slot * <span className="text-[11px] font-normal text-slate-500">(Auto-conflict prevention active)</span>
+                    </label>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-36 overflow-y-auto p-1 border border-slate-200 rounded-lg bg-slate-50">
+                      {AVAILABLE_SLOTS.map(slot => {
+                        const isBooked = bookedSlots.includes(slot);
+                        const isSelected = formData.time === slot;
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            disabled={isBooked}
+                            onClick={() => setFormData({ ...formData, time: slot })}
+                            className={`py-1.5 px-2 text-xs rounded-md font-medium transition text-center ${
+                              isBooked 
+                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed line-through' 
+                                : isSelected 
+                                  ? 'bg-brand-600 text-white font-bold shadow-sm' 
+                                  : 'bg-white text-slate-700 border border-slate-200 hover:border-brand-500'
+                            }`}
+                          >
+                            {slot}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {bookedSlots.length > 0 && (
+                      <p className="text-[11px] text-amber-600 mt-1 font-medium">
+                        ⚠️ {bookedSlots.length} slot(s) already reserved for this doctor on selected date.
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Clinical Reason / Notes</label>
+                    <textarea 
+                      rows="2"
+                      placeholder="Symptoms, previous prescriptions or reason for visit..."
+                      value={formData.notes} 
+                      onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    ></textarea>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-3">
+                    <button 
+                      type="button" 
+                      onClick={() => setIsModalOpen(false)} 
+                      className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="px-5 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow"
+                    >
+                      {editingAppointment ? 'Save Rescheduled Slot' : 'Confirm & Book Appointment'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* FOOTER */}
+          <footer className="mt-auto border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
+            <p>Developed for Medical Wizard Pre-Screening Assessment by <strong>Sithum Manusha Appuhamy</strong> · University of Moratuwa</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Stack: React 18 · Tailwind CSS · LocalStorage Storage Engine · Zero-Conflict Slot Resolver</p>
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
